@@ -10,11 +10,11 @@ const ext = (name) => name.split(".").pop().toLowerCase();
 
 function setStatus(msg, err) {
   $("status").textContent = msg;
-  $("status").className = err ? "err" : "";
+  $("status").classList.toggle("err", !!err);
 }
 function setProgress(p) {
   $("bar").hidden = p == null;
-  if (p != null) $("bar").value = p;
+  $("bar").firstElementChild.style.width = p == null ? "0" : Math.round(p * 100) + "%";
 }
 
 /* ---------- palavras -> linhas/colunas ----------
@@ -58,8 +58,10 @@ async function getWorker() {
       corePath: new URL("vendor/tesseract-core/", location.href).href,
       langPath: new URL("vendor/lang/", location.href).href,
       logger: (m) => {
-        if (m.status === "recognizing text") setProgress(m.progress);
-        else setStatus(m.status);
+        const t = { "loading tesseract core": "Carregando o motor de OCR…", "loading language traineddata": "Carregando o idioma…",
+          "initializing tesseract": "Iniciando o OCR…", "initializing api": "Iniciando o OCR…" }[m.status];
+        if (m.status === "recognizing text") { setStatus("Lendo o texto da imagem…"); setProgress(m.progress); }
+        else if (t) setStatus(t);
       },
     });
     await worker.setParameters({ tessedit_pageseg_mode: "6" });
@@ -188,34 +190,95 @@ async function convert(file, to) {
   throw new Error(`Conversão ${from} → ${to} não suportada`);
 }
 
-$("file").addEventListener("change", () => {
-  const f = $("file").files[0];
-  const opts = f ? ROUTES[ext(f.name)] || [] : [];
-  $("to").innerHTML = opts.map((o) => `<option>${o}</option>`).join("");
-  $("to").disabled = $("go").disabled = !opts.length;
-  $("result").innerHTML = "";
-  setStatus(f && !opts.length ? "Formato de entrada não suportado." : "", !!f && !opts.length);
+const LABEL = { docx: "Word", xlsx: "Excel", csv: "CSV", pdf: "PDF" };
+const HINT = {
+  docx: "Documento editável", xlsx: "Planilha", csv: "Texto separado por vírgulas", pdf: "Documento fixo",
+};
+let file = null, target = null, downloadUrl = null;
+
+function show(step) { // "pick" | "setup" | "work" | "done"
+  for (const s of ["pick", "setup", "work", "done"]) $("step-" + s).hidden = s !== step;
+}
+function fmtSize(n) {
+  return n < 1024 * 1024 ? Math.max(1, Math.round(n / 1024)) + " KB" : (n / 1024 / 1024).toFixed(1) + " MB";
+}
+
+function reset() {
+  file = target = null;
+  if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+  downloadUrl = null;
+  $("file").value = "";
+  setStatus("");
+  setProgress(null);
+  $("drop").classList.remove("error");
+  $("pick-error").textContent = "";
+  show("pick");
+}
+
+function choose(f) {
+  if (!f) return;
+  const opts = ROUTES[ext(f.name)];
+  if (!opts) {
+    $("pick-error").textContent = `Não consigo converter arquivos .${ext(f.name)}. Use PDF, DOCX, PNG, JPG, BMP ou WEBP.`;
+    $("drop").classList.add("error");
+    return;
+  }
+  file = f;
+  $("pick-error").textContent = "";
+  $("drop").classList.remove("error");
+  $("file-ext").textContent = ext(f.name).toUpperCase();
+  $("file-name").textContent = f.name;
+  $("file-size").textContent = fmtSize(f.size);
+  $("formats").innerHTML = opts
+    .map((o) => `<button type="button" class="fmt" data-fmt="${o}"><b>${LABEL[o]}</b><span>.${o} · ${HINT[o]}</span></button>`)
+    .join("");
+  select(opts[0]);
+  show("setup");
+}
+
+function select(fmt) {
+  target = fmt;
+  for (const b of document.querySelectorAll(".fmt")) b.setAttribute("aria-pressed", b.dataset.fmt === fmt);
+  $("go").textContent = "Converter para " + LABEL[fmt];
+}
+
+$("formats").addEventListener("click", (e) => {
+  const b = e.target.closest(".fmt");
+  if (b) select(b.dataset.fmt);
 });
+$("file").addEventListener("change", () => choose($("file").files[0]));
+for (const id of ["change", "again"]) $(id).addEventListener("click", reset);
+
+const drop = $("drop");
+["dragenter", "dragover"].forEach((t) =>
+  drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((t) =>
+  drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => choose(e.dataTransfer.files[0]));
+window.addEventListener("dragover", (e) => e.preventDefault());
+window.addEventListener("drop", (e) => e.preventDefault());
 
 $("go").addEventListener("click", async () => {
-  const f = $("file").files[0], to = $("to").value;
-  $("go").disabled = true;
-  $("result").innerHTML = "";
+  show("work");
   setStatus("Convertendo…");
+  setProgress(null);
   try {
-    const blob = await convert(f, to);
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = f.name.replace(/\.[^.]+$/, "") + "." + to;
-    a.id = "download";
-    a.textContent = "Baixar " + a.download;
-    $("result").appendChild(a);
-    setStatus("Pronto.");
+    const blob = await convert(file, target);
+    const name = file.name.replace(/\.[^.]+$/, "") + "." + target;
+    downloadUrl = URL.createObjectURL(blob);
+    const a = $("download");
+    a.href = downloadUrl;
+    a.download = name;
+    $("out-name").textContent = name;
+    $("out-size").textContent = fmtSize(blob.size);
+    show("done");
   } catch (e) {
     console.error(e);
-    setStatus("Falha: " + e.message, true);
+    show("setup");
+    $("setup-error").textContent = "Não foi possível converter: " + e.message;
+    return;
   } finally {
     setProgress(null);
-    $("go").disabled = false;
   }
+  $("setup-error").textContent = "";
 });

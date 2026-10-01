@@ -4,43 +4,160 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Conversor de arquivos</title>
+<meta name="description" content="Converta PDF, Word, imagens e planilhas direto no navegador, sem enviar seus arquivos.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232f6bff'/%3E%3Cpath d='M9 12h11l-3-3M23 20H12l3 3' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <style>
-  :root{--bg:#f6f7f9;--fg:#1a1d21;--card:#fff;--accent:#2563eb;--muted:#6b7280;--err:#b91c1c;--bd:#d9dde3}
-  @media (prefers-color-scheme:dark){:root{--bg:#14161a;--fg:#e8eaed;--card:#1d2026;--accent:#6ea0ff;--muted:#9aa0a8;--err:#ff8a8a;--bd:#33373f}}
+  :root{
+    --bg:#f3f5fa; --bg2:#e8edfb; --card:#ffffff; --fg:#161b2b; --muted:#667089; --line:#e2e6f0;
+    --accent:#2f6bff; --accent-fg:#fff; --accent-soft:#eaf0ff; --ok:#12a150; --err:#d6293e;
+    --shadow:0 1px 2px rgba(20,30,60,.05),0 12px 40px -12px rgba(30,50,110,.18);
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0e1118; --bg2:#141a2b; --card:#171b26; --fg:#eceff6; --muted:#8e98b0; --line:#272d3d;
+    --accent:#6c97ff; --accent-fg:#0a1020; --accent-soft:#1c2740; --ok:#43d17f; --err:#ff7a8a;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 16px 48px -16px rgba(0,0,0,.6);
+  }}
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
-  main{max-width:520px;margin:0 auto;padding:32px 16px}
-  h1{font-size:1.5rem;margin:0 0 4px}
-  p.sub{color:var(--muted);margin:0 0 20px}
-  .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:20px}
-  label{display:block;font-size:.85rem;color:var(--muted);margin:14px 0 4px}
-  input[type=file],select,button{width:100%;font:inherit;padding:10px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--fg)}
-  button{background:var(--accent);color:#fff;border:0;margin-top:18px;cursor:pointer;font-weight:600}
-  button:disabled{opacity:.5;cursor:wait}
-  progress{width:100%;margin-top:14px}
-  #status{margin-top:10px;font-size:.9rem;color:var(--muted);min-height:1.4em}
-  #status.err{color:var(--err)}
-  #result a{display:block;margin-top:14px;color:var(--accent);font-weight:600}
-  small{display:block;margin-top:16px;color:var(--muted)}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; min-height:100vh; color:var(--fg);
+    font:16px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:radial-gradient(1200px 600px at 50% -10%,var(--bg2),transparent 70%),var(--bg);
+    display:flex; flex-direction:column; align-items:center; padding:0 16px;
+  }
+  header{text-align:center; padding:56px 0 28px; max-width:560px}
+  .logo{width:48px;height:48px;border-radius:14px;background:var(--accent);display:grid;place-items:center;margin:0 auto 18px;box-shadow:0 8px 24px -8px var(--accent)}
+  .logo svg{width:26px;height:26px;stroke:var(--accent-fg)}
+  h1{font-size:clamp(1.6rem,4vw,2.1rem);line-height:1.15;margin:0 0 10px;letter-spacing:-.02em}
+  header p{margin:0;color:var(--muted)}
+  main{width:100%;max-width:560px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:20px}
+  [hidden]{display:none!important}
+
+  /* dropzone */
+  .drop{
+    display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;cursor:pointer;
+    border:2px dashed var(--line);border-radius:14px;padding:44px 20px;
+    transition:border-color .15s,background .15s,transform .15s;
+  }
+  .drop:hover,.drop:focus-within{border-color:var(--accent);background:var(--accent-soft)}
+  .drop.over{border-color:var(--accent);background:var(--accent-soft);transform:scale(1.01)}
+  .drop.error{border-color:var(--err)}
+  .drop svg{width:40px;height:40px;stroke:var(--accent);margin-bottom:6px}
+  .drop strong{font-size:1.05rem}
+  .drop span{color:var(--muted);font-size:.9rem}
+  .drop input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .err{color:var(--err);font-size:.9rem;margin:12px 2px 0;min-height:0}
+  .err:empty{display:none}
+  .types{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:14px}
+  .types i{font-style:normal;font-size:.75rem;color:var(--muted);background:var(--bg);border:1px solid var(--line);padding:2px 9px;border-radius:99px}
+
+  /* arquivo escolhido */
+  .file{display:flex;align-items:center;gap:14px}
+  .badge{flex:none;width:46px;height:56px;border-radius:10px;background:var(--accent-soft);color:var(--accent);
+    display:grid;place-items:center;font-weight:700;font-size:.72rem;letter-spacing:.04em;border:1px solid var(--line)}
+  .file>div:not(.badge){min-width:0;flex:1}
+  .file b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .file small{color:var(--muted)}
+  .link{background:none;border:0;color:var(--accent);font:inherit;font-size:.9rem;cursor:pointer;padding:6px 8px;border-radius:8px}
+  .link:hover{background:var(--accent-soft)}
+  h2{font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:22px 0 10px;font-weight:600}
+  .formats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+  .fmt{
+    text-align:left;font:inherit;color:inherit;background:var(--card);border:1.5px solid var(--line);border-radius:12px;
+    padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:2px;transition:border-color .15s,background .15s;
+  }
+  .fmt:hover{border-color:var(--accent)}
+  .fmt[aria-pressed=true]{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .fmt b{font-size:1rem}.fmt span{font-size:.8rem;color:var(--muted)}
+  .btn{
+    display:block;width:100%;margin-top:22px;padding:14px 18px;border:0;border-radius:12px;cursor:pointer;text-align:center;text-decoration:none;
+    background:var(--accent);color:var(--accent-fg);font:inherit;font-weight:600;font-size:1rem;
+    transition:filter .15s,transform .05s;
+  }
+  .btn:hover{filter:brightness(1.07)}.btn:active{transform:translateY(1px)}
+  .btn:focus-visible,.fmt:focus-visible,.link:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 45%,transparent);outline-offset:2px}
+
+  /* progresso */
+  .work{text-align:center;padding:30px 8px}
+  .spin{width:38px;height:38px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);margin:0 auto 16px;animation:r .8s linear infinite}
+  @keyframes r{to{transform:rotate(360deg)}}
+  #status{color:var(--muted);min-height:1.5em}
+  .bar{height:6px;background:var(--line);border-radius:9px;overflow:hidden;margin:16px auto 0;max-width:320px}
+  .bar div{height:100%;width:0;background:var(--accent);transition:width .2s}
+
+  /* pronto */
+  .done{text-align:center;padding:14px 4px 4px}
+  .check{width:52px;height:52px;border-radius:50%;background:color-mix(in srgb,var(--ok) 16%,transparent);display:grid;place-items:center;margin:0 auto 12px}
+  .check svg{width:26px;height:26px;stroke:var(--ok)}
+  .done h3{margin:0;font-size:1.2rem}
+  .done p{margin:4px 0 0;color:var(--muted);font-size:.9rem;word-break:break-all}
+  .done .link{margin-top:10px}
+
+  .notes{display:grid;gap:10px;margin:22px 4px 0;color:var(--muted);font-size:.85rem}
+  .notes div{display:flex;gap:10px}.notes svg{flex:none;width:18px;height:18px;stroke:var(--accent);margin-top:2px}
+  footer{margin:auto 0 0;padding:32px 0 24px;color:var(--muted);font-size:.8rem;text-align:center}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  @media (max-width:420px){.card{padding:14px}.drop{padding:34px 12px}}
 </style>
 </head>
 <body>
+<header>
+  <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h12l-3-3M19 16H7l3 3"/></svg></div>
+  <h1>Converta seus arquivos em segundos</h1>
+  <p>PDF, Word, imagens e planilhas — tudo no seu navegador, sem enviar nada para servidor nenhum.</p>
+</header>
+
 <main>
-  <h1>Conversor de arquivos</h1>
-  <p class="sub">Tudo roda no seu navegador — os arquivos não são enviados a nenhum servidor.</p>
   <div class="card">
-    <label for="file">Arquivo</label>
-    <input id="file" type="file" accept=".pdf,.docx,.png,.jpg,.jpeg,.bmp,.webp">
-    <label for="to">Converter para</label>
-    <select id="to" disabled></select>
-    <button id="go" disabled>Converter</button>
-    <progress id="bar" max="1" value="0" hidden></progress>
-    <div id="status"></div>
-    <div id="result"></div>
+    <section id="step-pick">
+      <label class="drop" id="drop">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15v3a2 2 0 002 2h12a2 2 0 002-2v-3"/></svg>
+        <strong>Arraste um arquivo aqui</strong>
+        <span>ou clique para escolher</span>
+        <input id="file" type="file" accept=".pdf,.docx,.png,.jpg,.jpeg,.bmp,.webp">
+      </label>
+      <div class="err" id="pick-error" role="alert"></div>
+      <div class="types"><i>PDF</i><i>DOCX</i><i>PNG</i><i>JPG</i><i>BMP</i><i>WEBP</i></div>
+    </section>
+
+    <section id="step-setup" hidden>
+      <div class="file">
+        <div class="badge" id="file-ext"></div>
+        <div><b id="file-name"></b><small id="file-size"></small></div>
+        <button class="link" id="change" type="button">Trocar</button>
+      </div>
+      <h2>Converter para</h2>
+      <div class="formats" id="formats"></div>
+      <div class="err" id="setup-error" role="alert"></div>
+      <button class="btn" id="go" type="button">Converter</button>
+    </section>
+
+    <section id="step-work" class="work" hidden aria-live="polite">
+      <div class="spin"></div>
+      <div id="status"></div>
+      <div class="bar" id="bar" hidden><div></div></div>
+    </section>
+
+    <section id="step-done" class="done" hidden>
+      <div class="check"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>
+      <h3>Tudo pronto!</h3>
+      <p><span id="out-name"></span> · <span id="out-size"></span></p>
+      <a class="btn" id="download" href="#">Baixar arquivo</a>
+      <button class="link" id="again" type="button">Converter outro arquivo</button>
+    </section>
   </div>
-  <small>PDF → DOCX (com OCR se for escaneado) · PDF → XLSX · imagem → CSV/XLSX (OCR) · DOCX → PDF (só texto, sem formatação).
-  OCR em português + inglês; o modelo de idioma (~10 MB) é baixado na primeira conversão com OCR.</small>
+
+  <div class="notes">
+    <div><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>
+      <span>Privado: a conversão acontece no seu dispositivo; o arquivo nunca sai dele.</span></div>
+    <div><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5h16v2M12 5v14M9 19h6"/></svg>
+      <span>PDF escaneado e imagens usam OCR em português e inglês. Na primeira vez, o modelo de idioma (~10 MB) é baixado.</span></div>
+    <div><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5m0 3h.01"/></svg>
+      <span>DOCX → PDF mantém só o texto. Fotos tortas ou tabelas sem bordas podem exigir revisão.</span></div>
+  </div>
 </main>
+<footer>Funciona offline depois de carregado.</footer>
 
 <script src="vendor/pdf.min.js"></script>
 <script src="vendor/tesseract.min.js"></script>
