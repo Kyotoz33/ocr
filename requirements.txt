@@ -1,0 +1,6 @@
+pdf2docx
+pytesseract
+pillow
+openpyxl
+pytest
+reportlab
