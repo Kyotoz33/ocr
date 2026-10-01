@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conversor de arquivos</title>
+<style>
+  :root{--bg:#f6f7f9;--fg:#1a1d21;--card:#fff;--accent:#2563eb;--muted:#6b7280;--err:#b91c1c;--bd:#d9dde3}
+  @media (prefers-color-scheme:dark){:root{--bg:#14161a;--fg:#e8eaed;--card:#1d2026;--accent:#6ea0ff;--muted:#9aa0a8;--err:#ff8a8a;--bd:#33373f}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif}
+  main{max-width:520px;margin:0 auto;padding:32px 16px}
+  h1{font-size:1.5rem;margin:0 0 4px}
+  p.sub{color:var(--muted);margin:0 0 20px}
+  .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:20px}
+  label{display:block;font-size:.85rem;color:var(--muted);margin:14px 0 4px}
+  input[type=file],select,button{width:100%;font:inherit;padding:10px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--fg)}
+  button{background:var(--accent);color:#fff;border:0;margin-top:18px;cursor:pointer;font-weight:600}
+  button:disabled{opacity:.5;cursor:wait}
+  progress{width:100%;margin-top:14px}
+  #status{margin-top:10px;font-size:.9rem;color:var(--muted);min-height:1.4em}
+  #status.err{color:var(--err)}
+  #result a{display:block;margin-top:14px;color:var(--accent);font-weight:600}
+  small{display:block;margin-top:16px;color:var(--muted)}
+</style>
+</head>
+<body>
+<main>
+  <h1>Conversor de arquivos</h1>
+  <p class="sub">Tudo roda no seu navegador — os arquivos não são enviados a nenhum servidor.</p>
+  <div class="card">
+    <label for="file">Arquivo</label>
+    <input id="file" type="file" accept=".pdf,.docx,.png,.jpg,.jpeg,.bmp,.webp">
+    <label for="to">Converter para</label>
+    <select id="to" disabled></select>
+    <button id="go" disabled>Converter</button>
+    <progress id="bar" max="1" value="0" hidden></progress>
+    <div id="status"></div>
+    <div id="result"></div>
+  </div>
+  <small>PDF → DOCX (com OCR se for escaneado) · PDF → XLSX · imagem → CSV/XLSX (OCR) · DOCX → PDF (só texto, sem formatação).
+  OCR em português + inglês; o modelo de idioma (~10 MB) é baixado na primeira conversão com OCR.</small>
+</main>
+
+<script src="vendor/pdf.min.js"></script>
+<script src="vendor/tesseract.min.js"></script>
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/docx.umd.js"></script>
+<script src="vendor/mammoth.browser.min.js"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="converter.js"></script>
+</body>
+</html>
