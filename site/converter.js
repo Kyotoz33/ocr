@@ -75,7 +75,7 @@ async function ocr(source) {
       text: x.text.trim(), x: x.bbox.x0, r: x.bbox.x1,
       y: (x.bbox.y0 + x.bbox.y1) / 2, h: x.bbox.y1 - x.bbox.y0,
     }));
-  return { text: data.text, words };
+  return { text: data.text, words, raw: (data.words || []).filter((x) => x.text.trim()) };
 }
 
 /* ---------- PDF ---------- */
@@ -92,7 +92,7 @@ async function pageWords(page) {
     }));
 }
 async function pageCanvas(page) {
-  const vp = page.getViewport({ scale: 2.5 });
+  const vp = page.getViewport({ scale: PdfLayout.SCALE });
   const c = document.createElement("canvas");
   c.width = vp.width; c.height = vp.height;
   await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
@@ -107,33 +107,18 @@ async function pdfHasText(pdf) {
 async function pdfToDocx(file) {
   const pdf = await loadPdf(file);
   const scanned = !(await pdfHasText(pdf));
-  const children = [];
+  const pages = [];
   for (let i = 1; i <= pdf.numPages; i++) {
     setStatus(`Página ${i}/${pdf.numPages}${scanned ? " (OCR)" : ""}`);
     const page = await pdf.getPage(i);
-    let lines;
-    if (scanned) {
-      lines = (await ocr(await pageCanvas(page))).text.split("\n");
-    } else {
-      lines = wordsToRows(await pageWords(page)).map((r) => r.join(" "));
-    }
-    // linhas em branco separam parágrafos no OCR; no texto nativo, cada linha vira parágrafo
-    let buf = [];
-    const flush = () => {
-      if (buf.length) children.push(new docx.Paragraph(buf.join(" ")));
-      buf = [];
-    };
-    for (const l of lines) {
-      const t = l.trim();
-      if (!t) flush();
-      else if (scanned) buf.push(t);
-      else children.push(new docx.Paragraph(t));
-    }
-    flush();
+    const canvas = await pageCanvas(page);
+    const img = PdfLayout.makeImage(canvas);
+    const items = scanned
+      ? PdfLayout.ocrItems((await ocr(canvas)).raw, img)
+      : await PdfLayout.nativeItems(page, img);
+    pages.push({ width: page.view[2] - page.view[0], height: page.view[3] - page.view[1], items, img });
   }
-  if (!children.length) throw new Error("Nenhum texto encontrado.");
-  const doc = new docx.Document({ sections: [{ children }] });
-  return docx.Packer.toBlob(doc);
+  return PdfLayout.toDocxBlob(pages);
 }
 
 function rowsToXlsxBlob(sheets) {
