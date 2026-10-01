@@ -18,7 +18,7 @@ select,input,button{font:inherit;margin:.4em 0;width:100%}.err{color:#b00}</styl
 <input type=file name=arquivo required>
 <select name=para>{% for f in formatos %}<option>{{ f }}</option>{% endfor %}</select>
 <button>Converter</button></form>
-<p>Entradas: PDF, DOCX, PNG, JPG, BMP, TIFF, WEBP.</p>"""
+<p>Entradas: PDF, DOCX, CSV, PNG, JPG, BMP, TIFF, WEBP.</p>"""
 
 
 def _page(erro=None, status=200):

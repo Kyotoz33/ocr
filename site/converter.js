@@ -2,7 +2,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
   "vendor/pdf.worker.min.js";
 
 const IMG = ["png", "jpg", "jpeg", "bmp", "webp"];
-const ROUTES = { pdf: ["docx", "xlsx"], docx: ["pdf"] };
+const ROUTES = { pdf: ["docx", "xlsx"], docx: ["pdf"], csv: ["txt", "jpg"] };
 IMG.forEach((e) => (ROUTES[e] = ["csv", "xlsx"]));
 
 const $ = (id) => document.getElementById(id);
@@ -179,20 +179,90 @@ async function docxToPdf(file) {
   return pdf.output("blob");
 }
 
+/* ---------- CSV -> TXT / JPG ---------- */
+async function readCsv(file) {
+  const buf = await file.arrayBuffer();
+  let text;
+  try { text = new TextDecoder("utf-8", { fatal: true }).decode(buf); }
+  catch (e) { text = new TextDecoder("latin1").decode(buf); }
+  text = text.replace(/^\ufeff/, "");
+  const head = text.split("\n").slice(0, 5).join("\n");
+  const delim = [",", ";", "\t", "|"].map((d) => [d, head.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+  const rows = [];
+  let row = [], cell = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (q) {
+      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (ch === '"') q = false;
+      else cell += ch;
+    } else if (ch === '"') q = true;
+    else if (ch === delim) { row.push(cell); cell = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += ch;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  const data = rows.filter((r) => r.some((c) => c.trim()));
+  if (!data.length) throw new Error("CSV vazio.");
+  const w = Math.max(...data.map((r) => r.length));
+  return data.map((r) => r.concat(Array(w - r.length).fill("")));
+}
+
+async function csvToTxt(file) {
+  const rows = await readCsv(file);
+  const widths = rows[0].map((_, i) => Math.max(...rows.map((r) => [...r[i]].length)));
+  const out = rows.map((r) => r.map((c, i) => c + " ".repeat(widths[i] - [...c].length)).join("  ").trimEnd());
+  return new Blob([out.join("\n") + "\n"], { type: "text/plain;charset=utf-8" });
+}
+
+async function csvToJpg(file) {
+  const rows = await readCsv(file);
+  if (rows.length > 600) throw new Error("CSV com linhas demais para uma imagem (máx. 600).");
+  const S = 2, pad = 12, rowH = 38, font = "system-ui, Arial, sans-serif";
+  const probe = document.createElement("canvas").getContext("2d");
+  const widths = rows[0].map((_, i) =>
+    Math.max(...rows.map((r, n) => { probe.font = `${n ? "" : "bold "}18px ${font}`; return probe.measureText(r[i]).width; })) + pad * 2);
+  const W = Math.ceil(widths.reduce((a, b) => a + b, 0)), H = rowH * rows.length;
+  const cv = document.createElement("canvas");
+  cv.width = (W + 1) * S; cv.height = (H + 1) * S;
+  const g = cv.getContext("2d");
+  g.scale(S, S);
+  g.fillStyle = "#fff"; g.fillRect(0, 0, W + 1, H + 1);
+  g.textBaseline = "middle";
+  rows.forEach((r, n) => {
+    if (n === 0) { g.fillStyle = "#dfe6f5"; g.fillRect(0, 0, W, rowH); }
+    else if (n % 2 === 0) { g.fillStyle = "#f6f8fc"; g.fillRect(0, n * rowH, W, rowH); }
+    g.fillStyle = "#000"; g.font = `${n ? "" : "bold "}18px ${font}`;
+    let x = 0;
+    r.forEach((c, i) => { g.fillText(c, x + pad, n * rowH + rowH / 2); x += widths[i]; });
+  });
+  g.strokeStyle = "#b8c0d0"; g.lineWidth = 1; g.beginPath();
+  for (let n = 0; n <= rows.length; n++) { g.moveTo(0, n * rowH + .5); g.lineTo(W, n * rowH + .5); }
+  let x = 0;
+  for (const w of [0, ...widths]) { x += w; g.moveTo(x + .5, 0); g.lineTo(x + .5, H); }
+  g.stroke();
+  return new Promise((ok, no) => cv.toBlob((b) => (b ? ok(b) : no(new Error("Falha ao gerar a imagem."))), "image/jpeg", 0.92));
+}
+
 /* ---------- UI ---------- */
 async function convert(file, to) {
   const from = ext(file.name);
   if (from === "pdf" && to === "docx") return pdfToDocx(file);
   if (from === "pdf" && to === "xlsx") return pdfToXlsx(file);
   if (from === "docx" && to === "pdf") return docxToPdf(file);
+  if (from === "csv" && to === "txt") return csvToTxt(file);
+  if (from === "csv" && to === "jpg") return csvToJpg(file);
   if (IMG.includes(from) && to === "csv") return imageToCsv(file);
   if (IMG.includes(from) && to === "xlsx") return imageToXlsx(file);
   throw new Error(`Conversão ${from} → ${to} não suportada`);
 }
 
-const LABEL = { docx: "Word", xlsx: "Excel", csv: "CSV", pdf: "PDF" };
+const LABEL = { docx: "Word", xlsx: "Excel", csv: "CSV", pdf: "PDF", txt: "Texto", jpg: "Imagem" };
 const HINT = {
   docx: "Documento editável", xlsx: "Planilha", csv: "Texto separado por vírgulas", pdf: "Documento fixo",
+  txt: "Colunas alinhadas", jpg: "Tabela como imagem",
 };
 let file = null, target = null, downloadUrl = null;
 
@@ -219,7 +289,7 @@ function choose(f) {
   if (!f) return;
   const opts = ROUTES[ext(f.name)];
   if (!opts) {
-    $("pick-error").textContent = `Não consigo converter arquivos .${ext(f.name)}. Use PDF, DOCX, PNG, JPG, BMP ou WEBP.`;
+    $("pick-error").textContent = `Não consigo converter arquivos .${ext(f.name)}. Use PDF, DOCX, CSV, PNG, JPG, BMP ou WEBP.`;
     $("drop").classList.add("error");
     return;
   }

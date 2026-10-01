@@ -113,3 +113,13 @@ def test_web(tmp_path):
     assert r.status_code == 200 and b"Ana" in r.data
     r = c.post("/", data={"arquivo": (io.BytesIO(b"x"), "t.txt"), "para": "csv"})
     assert r.status_code == 400
+
+
+def test_csv_to_txt_and_jpg(tmp_path):
+    src = tmp_path / "d.csv"
+    src.write_text("Nome;Idade\nAna;30\nJoão;25\n", encoding="utf-8")
+    txt = convert(src, tmp_path / "d.txt").read_text(encoding="utf-8").splitlines()
+    assert txt[0].split() == ["Nome", "Idade"] and txt[2].split() == ["João", "25"]
+    out = convert(src, tmp_path / "d.jpg")
+    img = Image.open(out)
+    assert img.format == "JPEG" and img.width > 100 and img.height > 100

@@ -6,6 +6,7 @@
 | PDF escaneado | DOCX | OCR por página (detecção automática) |
 | PDF | XLSX | tabelas via `pdfplumber`; OCR se escaneado |
 | DOCX | PDF | LibreOffice headless |
+| CSV | TXT (colunas alinhadas), JPG (tabela como imagem) | Pillow |
 | PNG/JPG/BMP/TIFF/WEBP | CSV, XLSX | OCR (Tesseract) + linhas/colunas |
 
 ## Instalação

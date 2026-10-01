@@ -2,9 +2,13 @@ from pathlib import Path
 
 from .ocr import IMAGE_EXTS, image_to_csv, image_to_xlsx
 from .office import docx_to_pdf
+from .tabular import csv_to_jpg, csv_to_txt
 from .pdf import pdf_to_docx, pdf_to_xlsx
 
 _ROUTES = {(".pdf", ".docx"): pdf_to_docx, (".pdf", ".xlsx"): pdf_to_xlsx, (".docx", ".pdf"): docx_to_pdf}
+_ROUTES[(".csv", ".txt")] = csv_to_txt
+_ROUTES[(".csv", ".jpg")] = csv_to_jpg
+_ROUTES[(".csv", ".jpeg")] = csv_to_jpg
 for _e in IMAGE_EXTS:
     _ROUTES[(_e, ".csv")] = image_to_csv
     _ROUTES[(_e, ".xlsx")] = image_to_xlsx
