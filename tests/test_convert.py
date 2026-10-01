@@ -50,3 +50,66 @@ def test_unsupported(tmp_path):
     f.write_text("a")
     with pytest.raises(ValueError):
         convert(f, tmp_path / "x.docx")
+
+
+def make_pdf(path, scanned_from=None):
+    from reportlab.pdfgen import canvas
+
+    c = canvas.Canvas(str(path))
+    if scanned_from:
+        c.drawImage(str(scanned_from), 50, 500, width=500, height=143)
+    else:
+        c.drawString(100, 750, "Ola mundo")
+    c.save()
+
+
+def test_scanned_pdf_to_docx_and_xlsx(tmp_path):
+    img = tmp_path / "t.png"
+    make_table_image(img)
+    pdf = tmp_path / "s.pdf"
+    make_pdf(pdf, img)
+    out = convert(pdf, tmp_path / "s.docx")
+    from docx import Document
+
+    text = "\n".join(p.text for p in Document(out).paragraphs)
+    assert "Nome" in text and "Recife" in text
+    convert(pdf, tmp_path / "s.xlsx")
+    ws = load_workbook(tmp_path / "s.xlsx").worksheets[0]
+    assert ws["A2"].value == "Ana"
+
+
+def test_pdf_table_to_xlsx(tmp_path):
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle
+
+    pdf = tmp_path / "tb.pdf"
+    t = Table([["Nome", "Idade"], ["Ana", "30"], ["Joao", "25"]])
+    t.setStyle(TableStyle([("GRID", (0, 0), (-1, -1), 1, "black")]))
+    SimpleDocTemplate(str(pdf)).build([t])
+    convert(pdf, tmp_path / "tb.xlsx")
+    ws = load_workbook(tmp_path / "tb.xlsx").worksheets[0]
+    assert [c.value for c in ws[2]] == ["Ana", "30"]
+
+
+def test_docx_to_pdf(tmp_path):
+    from docx import Document
+
+    d = Document()
+    d.add_paragraph("Ola mundo")
+    d.save(tmp_path / "d.docx")
+    out = convert(tmp_path / "d.docx", tmp_path / "d.pdf")
+    assert out.read_bytes().startswith(b"%PDF")
+
+
+def test_web(tmp_path):
+    import io
+
+    from converter.web import app
+
+    img = tmp_path / "t.png"
+    make_table_image(img)
+    c = app.test_client()
+    assert c.get("/").status_code == 200
+    r = c.post("/", data={"arquivo": (io.BytesIO(img.read_bytes()), "t.png"), "para": "csv"})
+    assert r.status_code == 200 and b"Ana" in r.data
+    r = c.post("/", data={"arquivo": (io.BytesIO(b"x"), "t.txt"), "para": "csv"})
+    assert r.status_code == 400

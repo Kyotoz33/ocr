@@ -6,11 +6,22 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 
 
 def image_to_rows(src: Path, lang: str = "por+eng") -> list[list[str]]:
-    """Faz OCR e reconstrói linhas/colunas a partir da posição das palavras."""
-    import pytesseract
     from PIL import Image
 
-    img = Image.open(src).convert("L")
+    return pil_to_rows(Image.open(src), lang)
+
+
+def pil_to_text(img, lang: str = "por+eng") -> str:
+    import pytesseract
+
+    return pytesseract.image_to_string(img.convert("L"), lang=lang)
+
+
+def pil_to_rows(img, lang: str = "por+eng") -> list[list[str]]:
+    """Faz OCR e reconstrói linhas/colunas a partir da posição das palavras."""
+    import pytesseract
+
+    img = img.convert("L")
     data = pytesseract.image_to_data(
         img, lang=lang, config="--psm 6", output_type=pytesseract.Output.DICT
     )

@@ -1,6 +1,10 @@
 pdf2docx
+pymupdf
+pdfplumber
+python-docx
 pytesseract
 pillow
 openpyxl
+flask
 pytest
 reportlab

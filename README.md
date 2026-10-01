@@ -2,12 +2,15 @@
 
 | Entrada | Saída | Como |
 |---|---|---|
-| PDF (com texto) | DOCX | `pdf2docx` |
-| PNG/JPG/BMP/TIFF/WEBP | CSV, XLSX | OCR (Tesseract) + reconstrução de linhas/colunas |
+| PDF (texto) | DOCX | `pdf2docx` |
+| PDF escaneado | DOCX | OCR por página (detecção automática) |
+| PDF | XLSX | tabelas via `pdfplumber`; OCR se escaneado |
+| DOCX | PDF | LibreOffice headless |
+| PNG/JPG/BMP/TIFF/WEBP | CSV, XLSX | OCR (Tesseract) + linhas/colunas |
 
 ## Instalação
 ```
-sudo apt install tesseract-ocr tesseract-ocr-por
+sudo apt install tesseract-ocr tesseract-ocr-por libreoffice-writer
 pip install -r requirements.txt
 ```
 
@@ -17,9 +20,8 @@ python -m converter relatorio.pdf --para docx
 python -m converter tabela.png --para xlsx -o saida.xlsx
 ```
 
-## Limitações
-Imagem → planilha funciona melhor com tabelas nítidas; fotos tortas ou manuscritos exigem revisão.
-PDF escaneado (sem texto) ainda não é suportado.
+Interface web: `python -m converter.web` e abra http://localhost:5000
 
-## Próximos passos
-PDF escaneado → DOCX (OCR), DOCX → PDF, PDF → XLSX (tabelas), interface web.
+## Limitações
+OCR de tabelas funciona melhor com imagens nítidas; fotos tortas ou manuscritos exigem revisão.
+PDF escaneado → DOCX gera só texto (sem layout original).
